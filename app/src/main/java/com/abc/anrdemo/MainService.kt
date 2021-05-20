@@ -6,21 +6,22 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.Point
 import android.hardware.display.DisplayManager
+import android.media.MediaCodec
 import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Environment
 import android.os.IBinder
-import android.util.Log
 import android.util.Size
 import android.view.Display
+import android.view.Surface
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import java.io.File
 import java.util.concurrent.Executors
 
-class MainService: Service() {
+class MainService : Service() {
     private val mediaProjectionManager by lazy { getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager }
 
     private var mediaRecorder: MediaRecorder? = null
@@ -59,17 +60,24 @@ class MainService: Service() {
         }
     }
 
+    /**
+     * Start recording
+     */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Executors.newSingleThreadExecutor().submit {
             intent?.let {
-                val resultCode = intent.getIntExtra(MainActivity.EXTRA_RESULT_CODE, Activity.RESULT_OK)
+                val resultCode =
+                    intent.getIntExtra(MainActivity.EXTRA_RESULT_CODE, Activity.RESULT_OK)
                 val resultData = intent.getParcelableExtra<Intent>(MainActivity.EXTRA_RESULT_DATA)
                 if (resultData != null) {
                     projection = mediaProjectionManager.getMediaProjection(resultCode, resultData)
-                    val file = createVideoFile()
-                    val size = prepareMediaRecorder(file)
-                    configureMediaProjection(size)
-                    mediaRecorder?.start()
+                    /**
+                     * Uncomment prepareMediaRecorder() and mediaRecorder?.start() to enable encoder + muxer
+                     */
+//                    prepareMediaRecorder()
+                    val surface = mediaRecorder?.surface ?: MediaCodec.createPersistentInputSurface()
+                    configureMediaProjection(getFullScreenSize(), surface) // create virtual display to capture screen frame
+//                    mediaRecorder?.start()
                 }
             }
         }
@@ -78,6 +86,7 @@ class MainService: Service() {
     }
 
     override fun onDestroy() {
+        stopRecorder()
         super.onDestroy()
     }
 
@@ -85,28 +94,39 @@ class MainService: Service() {
         return null
     }
 
-    private fun configureMediaProjection(size: Size) {
-        val ratio = getFullScreenSize().width / size.width.toFloat()
-        Log.d("ggwp", "$size ${getFullScreenSize()} ${resources.displayMetrics.densityDpi} ${resources.displayMetrics.density} $ratio ${resources.displayMetrics.densityDpi / ratio}")
+    private fun stopRecorder() {
+        try {
+            projection?.stop()
+            mediaRecorder?.stop()
+            mediaRecorder?.release()
+            projection = null
+            mediaRecorder = null
+        } catch (e: java.lang.Exception) {
+        }
+    }
+
+    private fun configureMediaProjection(size: Size, surface: Surface) {
         projection?.createVirtualDisplay(
             getString(R.string.app_name),
             size.width,
             size.height,
             resources.displayMetrics.densityDpi,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            mediaRecorder?.surface,
+            surface,
             null,
             null
         )
     }
 
-    private fun prepareMediaRecorder(outputFile: File): Size {
+    private fun prepareMediaRecorder(): Size {
+        val outFile = createVideoFile()
         val fullScreenSize = getFullScreenSize()
         val screenWidth = fullScreenSize.width
         val screenHeight = fullScreenSize.height
         val screenRatio = screenWidth / screenHeight.toFloat()
 
         val candidateWidths = listOf(1920, 1440, 1280, 720, 640, 320)
+
         for (candidateWidth in candidateWidths) {
             val candidateHeight = (candidateWidth / screenRatio).toInt()
             val isValidCandidate = candidateWidth < screenWidth && candidateHeight < screenHeight
@@ -115,16 +135,16 @@ class MainService: Service() {
                 val height = ensureEvenSize(candidateHeight)
                 try {
                     mediaRecorder = createMediaRecorder()
-                    mediaRecorder?.setOutputFile(outputFile.path)
+                    mediaRecorder?.setOutputFile(outFile.path)
                     mediaRecorder?.setVideoSize(width, height)
                     mediaRecorder?.prepare()
                     return Size(width, height)
                 } catch (e: Exception) {
-                    Log.d("ggwp", e.message!!)
                     try {
                         mediaRecorder?.release()
                     } catch (_: Exception) {
                     }
+
                     mediaRecorder = null
                     // try next candidate width
                 }
@@ -142,7 +162,7 @@ class MainService: Service() {
         val audioSampleRate = 44100
 
         val videoFrameRate = 30
-        val videoBitrate = 1024 * 1024 * 4
+        val videoBitrate = 4 * 1000 * 1000
 
         return MediaRecorder().apply {
             if (canRecordAudio) {

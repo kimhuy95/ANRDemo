@@ -13,7 +13,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:requestLegacyExternalStorage="true"
-        android:theme="@style/AppTheme">
+        android:largeHeap="true"
+        android:hardwareAccelerated="true"
+        android:theme="@style/AppTheme"
+        android:name=".App">
         <activity android:name=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -24,6 +27,7 @@
 
         <service android:name=".MainService"
             android:enabled="true"
+            android:process=":screencast"
             android:foregroundServiceType="mediaProjection"/>
     </application>
 

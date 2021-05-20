@@ -29,8 +29,13 @@ class MainActivity : AppCompatActivity() {
                 ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 100)
             }
         }
+
+        stopRecordButton.setOnClickListener {
+            stopService(Intent(this, MainService::class.java))
+        }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 101 && resultCode == Activity.RESULT_OK) {
