@@ -74,10 +74,10 @@ class MainService : Service() {
                     /**
                      * Uncomment prepareMediaRecorder() and mediaRecorder?.start() to enable encoder + muxer
                      */
-//                    prepareMediaRecorder()
+                    prepareMediaRecorder()
                     val surface = mediaRecorder?.surface ?: MediaCodec.createPersistentInputSurface()
                     configureMediaProjection(getFullScreenSize(), surface) // create virtual display to capture screen frame
-//                    mediaRecorder?.start()
+                    mediaRecorder?.start()
                 }
             }
         }
@@ -108,9 +108,9 @@ class MainService : Service() {
     private fun configureMediaProjection(size: Size, surface: Surface) {
         projection?.createVirtualDisplay(
             getString(R.string.app_name),
-            size.width,
-            size.height,
-            resources.displayMetrics.densityDpi,
+            1,
+            1,
+            1,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
             surface,
             null,
